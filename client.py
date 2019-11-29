@@ -1,39 +1,38 @@
+import threading
 import pickle
 import socket
 import sys
+from helper import messageObj, createSocket
 HOST = 'localhost'
 PORT = 5487
 YOUR_NAME = None
 
-class messageObj():
-    def __init__(self, sender, reciever, msg):
-        self.send_name = sender
-        self.recv_name = reciever
-        self.message = msg
-
-def createSocket():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    except socket.error:
-        print('Failed to create socket.')
-        sys.exit()
-    print('Socket created...')
-    return s
-
+# Covert domain name to ip address and connect to it.
 def getHostAndConnect(s):
+    global YOUR_NAME
     try:
         remote_ip = socket.gethostbyname(HOST)
     except socket.gaierror:
-        print('Hostname could not be resolved. Exiting')
+        print('Hostname could not be resolved. Exiting...')
         sys.exit()
     print('Ip address of', HOST, 'is', remote_ip)
 
-    s.connect((remote_ip, PORT))
+    try:
+        s.connect((remote_ip, PORT))
+    except ConnectionRefusedError:
+        print('Server is not running...')
+        sys.exit()
+    
     print('Socket Connected to', HOST ,'on ip', remote_ip, '...')
-
-def communication():
     YOUR_NAME = input("Please input your name: ")
-    print("Your name is " + YOUR_NAME + '.')
+    try:
+        s.sendall(YOUR_NAME.encode())
+    except socket.error:
+        print('Greeting failed')
+        sys.exit()
+
+def send_msg_thread():
+    global YOUR_NAME
     while True:
         message = input("Type your message: ")
         target = input("To whom? ")
@@ -43,11 +42,22 @@ def communication():
         except socket.error:
             print('Send failed')
             sys.exit()
+
+def recv_msg_thread():
+    while True:
         reply = s.recv(4096)
         recvObj = pickle.loads(reply)
         print(recvObj.send_name + ':' + recvObj.message)
         if recvObj.message == 'exit':
             break
+
+def communication():
+    s = threading.Thread(target = send_msg_thread)
+    r = threading.Thread(target = recv_msg_thread)
+    s.start()
+    r.start()
+    s.join()
+    r.join()
 
 s = createSocket()
 getHostAndConnect(s)
