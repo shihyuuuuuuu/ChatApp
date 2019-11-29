@@ -1,7 +1,7 @@
-import threading
 import pickle
 import socket
 import sys
+import threading
 from helper import messageObj, createSocket
 HOST = 'localhost'
 PORT = 5487
@@ -35,6 +35,10 @@ def send_msg_thread():
     global YOUR_NAME
     while True:
         message = input("Type your message: ")
+        if message == 'exit':
+            to_send = pickle.dumps(messageObj(YOUR_NAME, YOUR_NAME, message))
+            s.sendall(to_send)
+            break
         target = input("To whom? ")
         to_send = pickle.dumps(messageObj(YOUR_NAME, target, message))
         try :
@@ -47,9 +51,9 @@ def recv_msg_thread():
     while True:
         reply = s.recv(4096)
         recvObj = pickle.loads(reply)
-        print(recvObj.send_name + ':' + recvObj.message)
-        if recvObj.message == 'exit':
+        if recvObj.message == 'exit' and recvObj.send_name == YOUR_NAME:
             break
+        print(recvObj.send_name + ':' + recvObj.message)
 
 def communication():
     s = threading.Thread(target = send_msg_thread)
