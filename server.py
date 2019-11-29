@@ -24,6 +24,7 @@ def socket_bind_listen(s_obj, host, port, max_client_num):
 # and start a new thread when a new client is connected.
 def handle_connections(s_obj):
     threads = []
+    threading.Thread(target = server_command, args = (s_obj,)).start()
     while True:
         conn, addr = s_obj.accept()
         name = conn.recv(1024).decode()
@@ -31,7 +32,6 @@ def handle_connections(s_obj):
         client_data[name] = {'sock_obj': conn, 'addr': addr}
         threads.append(threading.Thread(target = on_new_client, args = (conn, addr)))
         threads[-1].start()
-        threading.Thread(target = server_command, args = (s_obj,)).start()
     
     # Not used now
     for i in threads:

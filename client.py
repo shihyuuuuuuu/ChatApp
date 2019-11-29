@@ -31,10 +31,12 @@ def getHostAndConnect(s):
         print('Greeting failed')
         sys.exit()
 
+# A thread for sending messages
 def send_msg_thread():
     global YOUR_NAME
     while True:
         message = input("Type your message: ")
+        # If you type 'exit', you will recieve it yourself and disconnect from the server.  See 'recv_msg_thread'
         if message == 'exit':
             to_send = pickle.dumps(messageObj(YOUR_NAME, YOUR_NAME, message))
             s.sendall(to_send)
@@ -47,19 +49,24 @@ def send_msg_thread():
             print('Send failed')
             sys.exit()
 
+# A thread for recieving messages
 def recv_msg_thread():
     while True:
         reply = s.recv(4096)
         recvObj = pickle.loads(reply)
+        # If you recieve a 'exit' message from yourself, you will break from the thread.
         if recvObj.message == 'exit' and recvObj.send_name == YOUR_NAME:
             break
         print(recvObj.send_name + ':' + recvObj.message)
 
+# Create two threads for sending and recieving messages
 def communication():
     s = threading.Thread(target = send_msg_thread)
     r = threading.Thread(target = recv_msg_thread)
     s.start()
     r.start()
+
+    # Threads will be joined after it's done
     s.join()
     r.join()
 
