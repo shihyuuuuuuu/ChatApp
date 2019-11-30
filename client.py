@@ -29,7 +29,19 @@ def register_or_signin():
     
     # Register
     if action == '1':
-        username = input('Input an username: ')
+        while True:
+            username = input('Input an username: ')
+            sql = """
+                SELECT username
+                FROM Info_UserData
+                WHERE username = '%s'
+            """ % (username)
+            cursor.execute(sql)
+            results = cursor.fetchall()
+            if len(results) != 0:
+                print('Username exist.')
+                continue
+            break
         while True:
             password = hashlib.sha256(getpass.getpass('Set a password: ').encode()).hexdigest()
             if hashlib.sha256(getpass.getpass('Please type your password again: ').encode()).hexdigest() == password:
