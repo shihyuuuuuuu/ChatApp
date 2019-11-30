@@ -1,3 +1,5 @@
+import hashlib
+import pymysql
 import pickle
 import socket
 import sys
@@ -6,6 +8,61 @@ from helper import messageObj, createSocket
 HOST = 'localhost'
 PORT = 5487
 YOUR_NAME = None
+
+def connect_to_db():
+    global db, cursor
+    try:
+        # Connect to database, Username: root, Password: password, DB: ChatApp
+        db = pymysql.connect('localhost', 'root', 'password', 'ChatApp')
+        cursor = db.cursor(pymysql.cursors.DictCursor)
+        print('DB connected...')
+    except:
+        print('DB connection error')
+    return db, cursor
+
+def register_or_signin():
+    action = None
+    
+    while action != '1' and action != '2':
+        action = input('Register(1) or Sign in(2)? ')
+    
+    # Register
+    if action == '1':
+        username = input('Input an username: ')
+        while True:
+            password = hashlib.sha256(input('Set a password: ').encode()).hexdigest()
+            if hashlib.sha256(input('Please type your password again: ').encode()).hexdigest() == password:
+                break
+        sql = """
+            INSERT INTO Info_UserData(username, password)
+            VALUES('%s', '%s')
+        """ % (username, password)
+        try:
+            cursor.execute(sql)
+            db.commit()
+        except pymysql.DatabaseError as e:
+            print(e)
+            db.rollback()
+        YOUR_NAME = username
+    # Sign in
+    elif action == '2':
+        while True:
+            username = input('Input your username: ')
+            sql = """
+                SELECT username, password
+                FROM Info_UserData
+                WHERE username = '%s'
+            """ % (username)
+            cursor.execute(sql)
+            results = cursor.fetchall()
+            if len(results) != 0:
+                break
+            print('Username not exist.')
+        while True:
+            if results[0]['password'] == hashlib.sha256(input('Input your password: ').encode()).hexdigest():
+                break
+            print('Wrong password.')
+        YOUR_NAME = username
 
 # Covert domain name to ip address and connect to it.
 def getHostAndConnect(s):
@@ -24,7 +81,7 @@ def getHostAndConnect(s):
         sys.exit()
     
     print('Socket Connected to', HOST ,'on ip', remote_ip, '...')
-    YOUR_NAME = input("Please input your name: ")
+    #YOUR_NAME = input("Please input your name: ")
     try:
         s.sendall(YOUR_NAME.encode())
     except socket.error:
@@ -70,7 +127,10 @@ def communication():
     s.join()
     r.join()
 
+db, cursor = connect_to_db()
+register_or_signin()
 s = createSocket()
 getHostAndConnect(s)
 communication()
 s.close()
+db.close()
