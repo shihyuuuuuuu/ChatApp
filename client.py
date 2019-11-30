@@ -1,27 +1,23 @@
 import getpass
-import hashlib
-import pymysql
 import pickle
 import socket
 import sys
 import threading
-from helper import messageObj, createSocket
+from helper import UserDataObj, MessageObj, createSocket
 HOST = 'localhost'
 PORT = 5487
 YOUR_NAME = None
 
-def connect_to_db():
-    global db, cursor
-    try:
-        # Connect to database, Username: root, Password: password, DB: ChatApp
-        db = pymysql.connect('localhost', 'root', 'password', 'ChatApp')
-        cursor = db.cursor(pymysql.cursors.DictCursor)
-        print('DB connected...')
-    except:
-        print('DB connection error')
-    return db, cursor
+def user_exist(*data):
+    if len(data) == 1:
+        s.sendall(pickle.dumps(UserDataObj('check_name', data[0], '')))
+        return True if s.recv(4096).decode() == 'T' else False
+    elif len(data) == 2:
+        s.sendall(pickle.dumps(UserDataObj('check_name_and_pwd', data[0], data[1])))
+        return True if s.recv(4096).decode() == 'T' else False
 
 def register_or_signin():
+    global YOUR_NAME
     action = None
     
     while action != '1' and action != '2':
@@ -31,55 +27,34 @@ def register_or_signin():
     if action == '1':
         while True:
             username = input('Input an username: ')
-            sql = """
-                SELECT username
-                FROM Info_UserData
-                WHERE username = '%s'
-            """ % (username)
-            cursor.execute(sql)
-            results = cursor.fetchall()
-            if len(results) != 0:
+            if user_exist(username):
                 print('Username exist.')
                 continue
             break
         while True:
-            password = hashlib.sha256(getpass.getpass('Set a password: ').encode()).hexdigest()
-            if hashlib.sha256(getpass.getpass('Please type your password again: ').encode()).hexdigest() == password:
+            password = getpass.getpass('Set a password: ')
+            if getpass.getpass('Please type your password again: ') == password:
+                s.sendall(pickle.dumps(UserDataObj('check_name_and_pwd', username, password)))
+                s.sendall(pickle.dumps(UserDataObj('OK', username, '')))
                 break
-        sql = """
-            INSERT INTO Info_UserData(username, password)
-            VALUES('%s', '%s')
-        """ % (username, password)
-        try:
-            cursor.execute(sql)
-            db.commit()
-        except pymysql.DatabaseError as e:
-            print(e)
-            db.rollback()
         YOUR_NAME = username
     # Sign in
     elif action == '2':
         while True:
             username = input('Input your username: ')
-            sql = """
-                SELECT username, password
-                FROM Info_UserData
-                WHERE username = '%s'
-            """ % (username)
-            cursor.execute(sql)
-            results = cursor.fetchall()
-            if len(results) != 0:
+            if user_exist(username):
                 break
             print('Username not exist.')
         while True:
-            if results[0]['password'] == hashlib.sha256(getpass.getpass('Input your password: ').encode()).hexdigest():
+            password = getpass.getpass('Input your password: ')
+            if user_exist(username, password):
+                s.sendall(pickle.dumps(UserDataObj('OK', username, '')))
                 break
             print('Wrong password.')
         YOUR_NAME = username
 
 # Covert domain name to ip address and connect to it.
-def getHostAndConnect(s):
-    global YOUR_NAME
+def get_host_and_connect(s):
     try:
         remote_ip = socket.gethostbyname(HOST)
     except socket.gaierror:
@@ -94,12 +69,7 @@ def getHostAndConnect(s):
         sys.exit()
     
     print('Socket Connected to', HOST ,'on ip', remote_ip, '...')
-    #YOUR_NAME = input("Please input your name: ")
-    try:
-        s.sendall(YOUR_NAME.encode())
-    except socket.error:
-        print('Greeting failed')
-        sys.exit()
+    register_or_signin()
 
 # A thread for sending messages
 def send_msg_thread():
@@ -108,11 +78,11 @@ def send_msg_thread():
         message = input("Type your message: ")
         # If you type 'exit', you will recieve it yourself and disconnect from the server.  See 'recv_msg_thread'
         if message == 'exit':
-            to_send = pickle.dumps(messageObj(YOUR_NAME, YOUR_NAME, message))
+            to_send = pickle.dumps(MessageObj(YOUR_NAME, YOUR_NAME, message))
             s.sendall(to_send)
             break
         target = input("To whom? ")
-        to_send = pickle.dumps(messageObj(YOUR_NAME, target, message))
+        to_send = pickle.dumps(MessageObj(YOUR_NAME, target, message))
         try :
             s.sendall(to_send)
         except socket.error:
@@ -131,19 +101,16 @@ def recv_msg_thread():
 
 # Create two threads for sending and recieving messages
 def communication():
-    s = threading.Thread(target = send_msg_thread)
-    r = threading.Thread(target = recv_msg_thread)
-    s.start()
-    r.start()
+    se = threading.Thread(target = send_msg_thread)
+    re = threading.Thread(target = recv_msg_thread)
+    se.start()
+    re.start()
 
     # Threads will be joined after it's done
-    s.join()
-    r.join()
+    se.join()
+    re.join()
 
-db, cursor = connect_to_db()
-register_or_signin()
 s = createSocket()
-getHostAndConnect(s)
+get_host_and_connect(s)
 communication()
 s.close()
-db.close()

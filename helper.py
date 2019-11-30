@@ -1,11 +1,17 @@
 import socket
 import sys
 
-class messageObj():
+class MessageObj():
     def __init__(self, sender, reciever, msg):
         self.send_name = sender
         self.recv_name = reciever
         self.message = msg
+
+class UserDataObj():
+    def __init__(self, mode, username, password):
+        self.mode = mode
+        self.username = username
+        self.password = password
 
 def createSocket():
     try:

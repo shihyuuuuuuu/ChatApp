@@ -1,12 +1,66 @@
+import hashlib
 import pickle
+import pymysql
 import socket
 import sys
 import threading
-from helper import messageObj, createSocket
+from helper import UserDataObj, MessageObj, createSocket
 HOST = 'localhost'  
 PORT = 5487 
 MAX_CLIENT_NUM = 10
 client_data = {}
+
+def connect_to_db():
+    global db, cursor
+    try:
+        # Connect to database, Username: root, Password: password, DB: ChatApp
+        db = pymysql.connect('localhost', 'root', 'password', 'ChatApp')
+        cursor = db.cursor(pymysql.cursors.DictCursor)
+        print('DB connected...')
+    except:
+        print('DB connection error')
+    return db, cursor
+
+# Handle the registration or sign in process
+def register_or_signin(conn):
+    while True:
+        userdata = pickle.loads(conn.recv(1024))
+        # Check if the username is in the database.
+        if userdata.mode == 'check_name':
+            sql = """
+                SELECT username
+                FROM Info_UserData
+                WHERE username = '%s'
+            """ % (userdata.username)
+            cursor.execute(sql)
+            results = cursor.fetchall()
+            conn.sendall('T'.encode() if len(results) != 0 else 'F'.encode())
+        # Check if the (username, password) pair is in the database.
+        elif userdata.mode == 'check_name_and_pwd':
+            sql = """
+                SELECT username
+                FROM Info_UserData
+                WHERE username = '%s' AND password = '%s'
+            """ % (userdata.username, hashlib.sha256(userdata.password.encode()).hexdigest())
+            cursor.execute(sql)
+            results = cursor.fetchall()
+            conn.sendall('T'.encode() if len(results) != 0 else 'F'.encode())
+        # Insert new user data into the database.(Registration)
+        elif userdata.mode == 'set_name_and_pwd':
+            sql = """
+                INSERT INTO Info_UserData(username, password)
+                VALUES('%s', '%s')
+            """ % (userdata.username, hashlib.sha256(userdata.password.encode()).hexdigest())
+            try:
+                cursor.execute(sql)
+                db.commit()
+            except pymysql.DatabaseError as e:
+                print(e)
+                db.rollback()
+        # If the user finishes registration or login, it will send 'OK'.
+        # Then this method return his(her) username.
+        elif userdata.mode == 'OK':
+            return userdata.username
 
 # Bind the socket object to specified host/port, and listen at it.
 def socket_bind_listen(s_obj, host, port, max_client_num):
@@ -27,7 +81,7 @@ def handle_connections(s_obj):
     threading.Thread(target = server_command, args = (s_obj,)).start()
     while True:
         conn, addr = s_obj.accept()
-        name = conn.recv(1024).decode()
+        name = register_or_signin(conn)
         print('Connected with ' + addr[0] + ':' + str(addr[1]) + ' Name:' + name)
         client_data[name] = {'sock_obj': conn, 'addr': addr}
         threads.append(threading.Thread(target = on_new_client, args = (conn, addr)))
@@ -56,6 +110,9 @@ def on_new_client(clientsocket, addr):
         else:
             print('Person not found...')
 
+db, cursor = connect_to_db()
 s = createSocket()
 socket_bind_listen(s, HOST, PORT, MAX_CLIENT_NUM)
 handle_connections(s)
+s.close()
+db.close()
