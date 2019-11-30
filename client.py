@@ -1,3 +1,4 @@
+import getpass
 import hashlib
 import pymysql
 import pickle
@@ -30,8 +31,8 @@ def register_or_signin():
     if action == '1':
         username = input('Input an username: ')
         while True:
-            password = hashlib.sha256(input('Set a password: ').encode()).hexdigest()
-            if hashlib.sha256(input('Please type your password again: ').encode()).hexdigest() == password:
+            password = hashlib.sha256(getpass.getpass('Set a password: ').encode()).hexdigest()
+            if hashlib.sha256(getpass.getpass('Please type your password again: ').encode()).hexdigest() == password:
                 break
         sql = """
             INSERT INTO Info_UserData(username, password)
@@ -59,7 +60,7 @@ def register_or_signin():
                 break
             print('Username not exist.')
         while True:
-            if results[0]['password'] == hashlib.sha256(input('Input your password: ').encode()).hexdigest():
+            if results[0]['password'] == hashlib.sha256(getpass.getpass('Input your password: ').encode()).hexdigest():
                 break
             print('Wrong password.')
         YOUR_NAME = username
