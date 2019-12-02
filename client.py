@@ -34,7 +34,7 @@ def register_or_signin():
         while True:
             password = getpass.getpass('Set a password: ')
             if getpass.getpass('Please type your password again: ') == password:
-                s.sendall(pickle.dumps(UserDataObj('check_name_and_pwd', username, password)))
+                s.sendall(pickle.dumps(UserDataObj('set_name_and_pwd', username, password)))
                 s.sendall(pickle.dumps(UserDataObj('OK', username, '')))
                 break
         YOUR_NAME = username
